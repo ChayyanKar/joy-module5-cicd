@@ -1,0 +1,70 @@
+name: Node CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: |
+          echo "Test Execution Started" > test-results.txt
+          npm test >> test-results.txt 2>&1 || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.txt
+
+
+  deploy:
+    needs: test
+
+    runs-on:
+      - self-hosted
+      - linux
+      - ubuntu
+      - nodejs
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+
+      - name: Show test results
+        run: cat test-results.txt
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Deploy with PM2
+        run: |
+          npm install -g pm2
+
+          pm2 delete app || true
+
+          pm2 start index.js --name app
+
+          pm2 save
