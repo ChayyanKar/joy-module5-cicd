@@ -60,19 +60,14 @@ jobs:
 
       - name: Deploy Application
         run: |
-          mkdir -p ~/nodeapp
+          sudo apt update
+          sudo apt install nginx -y
 
-          rsync -av --delete ./ ~/nodeapp/
+          sudo rm -rf /var/www/html/*
 
-          cd ~/nodeapp
+          rsync -av --delete ./ /var/www/html/ --exclude .git
 
-          npm install
-
-          pm2 delete ostad-app || true
-
-          pm2 start index.js --name ostad-app
-
-          pm2 save
+          sudo systemctl restart nginx
 
       - name: Verify Deployment
         run: |
