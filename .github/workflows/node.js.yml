@@ -1,29 +1,83 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
-
-name: Node.js CI
+name: NodeJS CI-CD
 
 on:
   push:
-    branches: [ "master" ]
+    branches:
+      - main
 
 jobs:
-  build:
 
-    runs-on: self-hosted
-
-    strategy:
-      matrix:
-        node-version: [14.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+  test:
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: npm ci
-    - run: sudo pm2 kill
-    - run: npm start
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Tests
+        run: |
+          echo "Running Tests..." > test-results.txt
+          npm test >> test-results.txt 2>&1 || true
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.txt
+
+
+  deploy:
+    needs: test
+
+    runs-on:
+      - self-hosted
+      - linux
+      - ubuntu
+      - nodejs
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+
+      - name: Display Test Results
+        run: |
+          echo "===== TEST RESULTS ====="
+          cat test-results.txt
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Deploy Application
+        run: |
+          mkdir -p ~/nodeapp
+
+          rsync -av --delete ./ ~/nodeapp/
+
+          cd ~/nodeapp
+
+          npm install
+
+          pm2 delete ostad-app || true
+
+          pm2 start index.js --name ostad-app
+
+          pm2 save
+
+      - name: Verify Deployment
+        run: |
+          pm2 list
